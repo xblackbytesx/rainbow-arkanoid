@@ -18,8 +18,10 @@ def update_particles(particles, screen):
 
 # Initialization
 pygame.init()
-screen = pygame.display.set_mode((800, 600))
+screen = pygame.display.set_mode((1920, 1280))
 pygame.display.set_caption("Rainbow Arkanoid")
+
+window_width, window_height = screen.get_size()
 
 # Helper for generating randomized colors
 def random_color():
@@ -27,7 +29,7 @@ def random_color():
 
 # Blocks and colors
 colors = [(255, 0, 0), (255, 165, 0), (255, 255, 0), (0, 128, 0), (0, 0, 255), (75, 0, 130), (238, 130, 238)]
-block_colors = [random.choice(colors) for _ in range(50)]
+block_colors = [random.choice(colors) for _ in range(150)]
 
 # Particles
 particles = []
@@ -39,23 +41,29 @@ GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 
 # Paddle
-paddle = pygame.Rect(300, 500, 100, 10)
+paddle = pygame.Rect(860, 1000, 200, 20)
 
 # Ball
-ball = pygame.Rect(400, 300, 15, 15)
-ball_speed = [2, -2]
+ball = pygame.Rect(960, 600, 30, 30)
+ball_speed = [4, -4]
 
 # Blocks
-block_width, block_height = 60, 20
-blocks = [pygame.Rect(100 + 70 * x, 50 + 30 * y, block_width, block_height) for y in range(5) for x in range(10)]
+block_width, block_height = 120, 40
+block_rows = 5
+level = 1
+
+def create_level(level, block_rows):
+    return [pygame.Rect(200 + 140 * x, 100 + 60 * y, block_width, block_height) for y in range(block_rows) for x in range(12)]
+
+blocks = create_level(level, block_rows)
 
 # Galaxy background
-stars = [pygame.Rect(random.randint(0, 800), random.randint(0, 600), 2, 2) for _ in range(100)]
+stars = [pygame.Rect(random.randint(0, 1920), random.randint(0, 1280), 2, 2) for _ in range(150)]
 
 # Lives and score
 lives = 3
 score = 0
-font = pygame.font.Font(None, 36)
+font = pygame.font.Font(None, 72)
 
 # Sound effects
 pygame.mixer.init()
@@ -68,9 +76,19 @@ game_over_sound = pygame.mixer.Sound("./assets/audio/game_over.wav")
 pygame.mixer.music.load("./assets/audio/background_music.wav")
 pygame.mixer.music.play(-1)  # Loop background music infinitely
 
+def show_start_level(screen, level, font):
+    screen.fill((0, 0, 25))
+    level_start_text = font.render(f"Start Level {level}", True, WHITE)
+    screen.blit(level_start_text, (320, 300))
+    pygame.display.flip()
+    pygame.time.delay(2000)
+
 # Game loop
 running = True
 color_change_timer = 0
+ball_speed = [4, -4] # Move ball_speed definition here, outside the while loop
+
+show_start_level(screen, level, font)  # Toon "Start Level 1" aan het begin
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -81,14 +99,14 @@ while running:
     paddle.centerx = mouse_x
     if paddle.left < 0:
         paddle.left = 0
-    if paddle.right > 800:
-        paddle.right = 800
+    if paddle.right > 1920:
+        paddle.right = 1920
 
     # Ball movement
     ball.move_ip(ball_speed[0], ball_speed[1])
 
     # Detect ball
-    if ball.left < 0 or ball.right > 800:
+    if ball.left < 0 or ball.right > 1920:
         ball_speed[0] = -ball_speed[0]
         wall_bounce.play()
     if ball.top < 0:
@@ -98,10 +116,10 @@ while running:
         ball_speed[1] = -ball_speed[1]
         paddle_hit.play()
 
-    if ball.bottom > 600:
+    if ball.bottom > 1200:
         lives -= 1
         ball.x, ball.y = 400, 300
-        ball_speed = [2, -2]
+        ball_speed = [4, -4]  # Keep the ball speed constant
 
     # Detect blocks
     for i, block in enumerate(blocks):
@@ -126,8 +144,16 @@ while running:
     # Show current sore and remaining lives
     lives_text = font.render(f"Lives: {lives}", True, WHITE)
     score_text = font.render(f"Score: {score}", True, WHITE)
-    screen.blit(lives_text, (10, 10))
-    screen.blit(score_text, (600, 10))
+
+    # Get relative dimensions
+    lives_x = window_width * 0.05  # 5% from the left edge of the window
+    lives_y = window_height * 0.05  # 5% from the top edge of the window
+
+    score_x = window_width * 0.95 - score_text.get_width()  # 5% from the right edge of the window
+    score_y = window_height * 0.05  # 5% from the top edge of the window
+
+    screen.blit(lives_text, (lives_x, lives_y))
+    screen.blit(score_text, (score_x, score_y))
 
     # Update and draw particles
     update_particles(particles, screen)
@@ -141,14 +167,34 @@ while running:
         block_colors = [random_color() for _ in range(len(blocks))]
         color_change_timer = 0
 
+    # Check if level is complete
+    if not blocks:
+        level += 1
+        blocks = create_level(level, block_rows)
+        block_colors = [random.choice(colors) for _ in range(block_rows * 150)]
+        ball.x, ball.y = 960, 600
+        ball_speed = [4, -4]
+        show_start_level(screen, level, font)  # Toon "Start Level X" bij het begin van elk nieuw level
+
+        # Vervang de vorige screen.fill((0, 0, 25)) regel door deze while loop
+        start_time = pygame.time.get_ticks()
+        while pygame.time.get_ticks() - start_time < 3000:
+            screen.fill((0, 0, 25))
+            for star in stars:
+                pygame.draw.rect(screen, WHITE, star)
+            pygame.draw.rect(screen, BLUE, paddle)
+            pygame.draw.circle(screen, GREEN, ball.center, ball.width // 2)
+            for i, block in enumerate(blocks):
+                pygame.draw.rect(screen, block_colors[i], block)
+            pygame.display.flip()
+
     # Game over
     if lives <= 0:
         game_over_sound.play()  # Play background music
         pygame.mixer.music.stop()  # Stop background music
         screen.fill((0, 0, 25))
         game_over_text = font.render("Game Over", True, WHITE)
-        # score_text(screen, "GAME OVER", (640, 350), 48, WHITE)
-        # score_text(screen, "Press any key to exit", (640, 400), 24, WHITE)
+        screen.blit(game_over_text, (860, 640))
         pygame.display.flip()
         while True:
             event = pygame.event.wait()
